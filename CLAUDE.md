@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-This repository is **pre-scaffolding**. The only committed file is `project-scope.md`, the source of truth for the product, roles, and data model. Keep `project-scope.md` in sync with any schema or scope change. Sections below marked *(planned)* describe the intended structure to build toward.
+This repository is **early scaffolding**. `project-scope.md` is the source of truth for the product, roles, and data model — keep it in sync with any schema or scope change. The Spring Boot backend lives in `server/` (Maven module bootstrapped, PostgreSQL datasource + Flyway wired in); no migrations or domain code exist yet. Sections below marked *(planned)* describe the intended structure to build toward.
+
+> **Note:** the backend module directory is `server/`, not `backend/`. Some *(planned)* sections below still say `backend/` — read those as `server/`.
 
 **FraternityOS** (working title; repo dir `trackmycareer`) is a web platform for managing fraternity house operations — members, roles, announcements, a shared calendar, recurring chores, and monthly rent statements — replacing the WhatsApp + spreadsheets workflow.
 
@@ -13,7 +15,7 @@ This repository is **pre-scaffolding**. The only committed file is `project-scop
 **Backend**
 - Spring Boot 3 · Java 21 · Spring Data JPA
 - PostgreSQL · Maven build
-- Flyway migrations (plain SQL) — Hibernate `ddl-auto` set to `validate`, Flyway owns the schema
+- Flyway migrations (plain SQL) via `flyway-core` + `flyway-database-postgresql` — Hibernate `ddl-auto` set to `validate`, Flyway owns the schema. Flyway runs on startup; **the app won't boot until an initial migration exists** (`validate` fails against an empty DB).
 - Spring Security + JWT for authn/authz (`@PreAuthorize`)
 - `@Scheduled` background worker for chore rotation + overdue transitions
 - File uploads on local disk behind a `FileStorageService` interface (relative key in `attachment_url`), swappable for S3 post-MVP
@@ -24,12 +26,12 @@ This repository is **pre-scaffolding**. The only committed file is `project-scop
 
 ## Commands *(planned — replace with real scripts after scaffolding)*
 
-**Backend (Maven, from `backend/`)**
+**Backend (Maven, from `server/`)**
 - `./mvnw spring-boot:run` — run the API (Flyway migrates on startup)
 - `./mvnw test` — full test suite
 - `./mvnw test -Dtest=ClassName#method` — single test
 - `./mvnw clean package` — build the jar
-- New migration: add `backend/src/main/resources/db/migration/V<n>__description.sql`
+- New migration: add `server/src/main/resources/db/migration/V<n>__description.sql`
 
 **Frontend (npm, from `frontend/`)**
 - `npm run dev` — Vite dev server
