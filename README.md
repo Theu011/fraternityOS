@@ -147,7 +147,80 @@ docker compose up --build -d
 - O **Flyway migra automaticamente** ao iniciar; o Hibernate roda em `ddl-auto=validate`.
 - Imagens: backend multi-stage em **JRE Alpine** (não-root), frontend em **nginx** servindo o build estático e fazendo proxy de `/api`.
 
-> Deploy em si (provedor, TLS, secrets manager, backups) ainda **não** está incluído — veja "Próximos passos de deploy" no fim.
+> Para rodar o stack de produção **na nuvem** (sem Docker Compose), veja a seção abaixo.
+
+---
+
+## ☁️ Deploy na nuvem (Vercel · Render · Neon · Supabase)
+
+Em produção o app roda distribuído em quatro serviços gerenciados de camada gratuita — não há mais nginx nem `docker compose`: o frontend é servido pela Vercel e chama o backend **cross-origin** (por isso o CORS é obrigatório, não mais um proxy `/api`).
+
+```mermaid
+flowchart LR
+    U["Usuário / Navegador"] -->|HTTPS| FE["SPA React<br/>Vercel"]
+    FE -->|"REST + JWT (CORS)"| BE["API Spring Boot<br/>Render · Docker · profile prod"]
+    BE -->|"JPA · Flyway"| DB[("PostgreSQL<br/>Neon")]
+    BE -->|"anexos (REST)"| ST[["Supabase Storage<br/>bucket privado"]]
+```
+
+| Camada | Serviço | O que roda | Observações |
+|---|---|---|---|
+| Frontend | **Vercel** | build estático do Vite (`frontend/`) | Root Directory `frontend`; `vercel.json` reescreve todas as rotas para `index.html` (SPA). |
+| Backend | **Render** | Web Service Docker a partir de `server/Dockerfile` | Root Directory `server`; profile `prod`; Render injeta `PORT` (a app faz bind em `${PORT:8080}`). |
+| Banco | **Neon** | PostgreSQL gerenciado | Flyway migra no boot. Use a conexão **direta** (sem `-pooler`) — o pooler quebra os advisory locks do Flyway. |
+| Storage | **Supabase Storage** | anexos dos demonstrativos (bucket privado `statements`) | Sobrevive a redeploys do Render (filesystem efêmero). |
+
+### Onde vai cada variável de ambiente
+
+As variáveis são divididas entre os dois provedores (nada de `.env` na nuvem). Segredos marcados 🔒.
+
+**Render (backend)**
+
+| Variável | Valor / origem |
+|---|---|
+| `SPRING_PROFILES_ACTIVE` | `prod` |
+| `SPRING_DATASOURCE_URL` | connection string do Neon reescrita como JDBC: `jdbc:postgresql://<host>/<db>?sslmode=require` (host **direto**, sem `-pooler`) |
+| `SPRING_DATASOURCE_USERNAME` | usuário do Neon |
+| `SPRING_DATASOURCE_PASSWORD` 🔒 | senha do Neon |
+| `JWT_SECRET` 🔒 | valor forte único, ex.: `openssl rand -base64 48` |
+| `SUPABASE_URL` | URL do projeto Supabase, `https://<ref>.supabase.co` |
+| `SUPABASE_STORAGE_BUCKET` | `statements` (só se o bucket tiver outro nome) |
+| `SUPABASE_SERVICE_KEY` 🔒 | chave secreta do Supabase (`sb_secret_...` ou `service_role`) |
+| `CORS_ALLOWED_ORIGINS` | origem exata da Vercel, ex.: `https://<app>.vercel.app` (sem `/` final, sem path) |
+
+**Vercel (frontend)**
+
+| Variável | Valor / origem |
+|---|---|
+| `VITE_API_URL` | URL do backend no Render **sem** `/api` e **sem** `/` final, ex.: `https://<api>.onrender.com`. Embutida no build — mude-a e refaça o deploy. |
+
+### Roteiro (resumo)
+
+1. **Neon** — criar o projeto/DB; copiar a connection string (direta).
+2. **Supabase** — criar o bucket **privado** `statements`; copiar a Project URL e uma secret key.
+3. **Render** — Web Service Docker (Root Directory `server`) conectado ao GitHub; preencher as variáveis acima (menos CORS); deploy → verificar `GET /actuator/health` = `{"status":"UP"}` e o Flyway aplicando `V1`/`V2` nos logs.
+4. **Vercel** — importar o repo (Root Directory `frontend`), definir `VITE_API_URL`, deploy.
+5. **CORS** — definir `CORS_ALLOWED_ORIGINS` no Render com a origem da Vercel; aguardar o redeploy (o CORS é lido no boot).
+6. **Verificar** — cadastro, login, criação de república, e o round-trip de anexo em Finanças (upload → download) confirmando o Supabase Storage.
+
+> As camadas gratuitas hibernam quando ociosas: o backend no Render e o banco no Neon fazem *cold start* na primeira requisição após inatividade (alguns segundos).
+
+---
+
+## 💻 Dev vs. Produção
+
+O mesmo código roda nos dois ambientes; o que muda é o **profile do Spring** e de onde vêm os serviços de apoio.
+
+| | Desenvolvimento | Produção (nuvem) |
+|---|---|---|
+| Profile Spring | `default` (`application.yml`) | `prod` (`application-prod.yml`, tudo por env, *fail-fast*) |
+| Como sobe | `docker compose up` **ou** `mvnw spring-boot:run` + `npm run dev` | Render (backend) + Vercel (frontend) |
+| Frontend → backend | proxy same-origin (`/api` via Vite/nginx) | cross-origin direto (`VITE_API_URL`) + **CORS** |
+| Banco | Postgres em container | Neon |
+| Anexos | disco local (`FILE_STORAGE_DIR`) via `LocalDiskFileStorageService` | Supabase Storage via `SupabaseFileStorageService` |
+| Segredos | `.env` local (padrões seguros) | env vars do Render/Vercel (nunca versionadas) |
+
+A troca de storage é transparente para o código: ambos implementam `FileStorageService` e são selecionados por `@Profile` (`!prod` → disco local, `prod` → Supabase), sem nenhuma mudança nos callers.
 
 ---
 
@@ -216,13 +289,220 @@ trackmycareer/
 
 ---
 
-## 🚧 Próximos passos de deploy
+---
 
-O projeto está **pronto para produção** (config por env, imagens, health checks, CI com empacotamento), mas o deploy em si ainda não foi feito. O que falta ao publicar:
+# 🚀 Roadmap
 
-1. Provisionar um **PostgreSQL gerenciado** e definir `SPRING_DATASOURCE_*`.
-2. Gerar e guardar o `JWT_SECRET` num **secrets manager** (não em `.env` versionado).
-3. Definir `CORS_ALLOWED_ORIGINS` com a origem real do frontend.
-4. Publicar as imagens num **registry** e rodar atrás de **HTTPS/TLS** (reverse proxy ou load balancer).
-5. Provisionar o **Supabase Storage** (bucket privado) e definir `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` para os anexos; configurar **backups** do banco.
-6. (Opcional) Estender o CI com um job de **deploy** disparado por tag/release.
+O FraternityOS foi desenvolvido intencionalmente como um **MVP (Produto Mínimo Viável)** para validar a experiência principal de gerenciamento de repúblicas.
+
+A versão atual já suporta:
+
+- ✅ Autenticação JWT
+- ✅ Onboarding (criação de república ou solicitação de entrada)
+- ✅ Gerenciamento de membros
+- ✅ Gerenciamento de cargos
+- ✅ Avisos
+- ✅ Calendário
+- ✅ Responsabilidades
+- ✅ Demonstrativos financeiros
+- ✅ Deploy em produção (Vercel + Render + Neon + Supabase)
+
+Os recursos abaixo estão planejados para futuras versões.
+
+---
+
+## 🏠 Gestão da República
+
+### ✅ Sistema de Kudos
+
+Recompensar moradores que ajudam a casa além de suas responsabilidades.
+
+Possíveis funcionalidades:
+
+- Registro de boas ações
+- Upload de fotos como evidência
+- Aprovação pelos demais moradores
+- Conversão de Kudos em Pontos Positivos
+- Compensação automática de Pontos Negativos
+
+---
+
+### 📦 Inventário
+
+Gerenciar os bens compartilhados da república.
+
+Exemplos:
+
+- Produtos de limpeza
+- Utensílios de cozinha
+- Eletrônicos
+- Móveis
+- Equipamentos esportivos
+
+Possíveis funcionalidades:
+
+- Controle de estoque
+- Alertas de reposição
+- Histórico de compras
+- Responsável por cada item
+
+---
+
+### 🖼 Galeria
+
+Galeria compartilhada para registrar a história da república.
+
+Planejado:
+
+- Álbuns
+- Upload de fotos
+- Organização por eventos
+- Curtidas
+- Comentários
+
+---
+
+### 🗳 Enquetes
+
+Permitir votações diretamente pela plataforma.
+
+Exemplos:
+
+- Destino da próxima festa
+- Compras da casa
+- Reformas
+- Mudanças nas regras
+
+---
+
+### 🏆 Rankings
+
+Adicionar elementos de gamificação.
+
+Exemplos:
+
+- Mais tarefas concluídas
+- Mais Kudos recebidos
+- Participação em eventos
+- Contribuições para a casa
+
+---
+
+## 🎓 Rede de Alumni
+
+Expandir a experiência dos ex-moradores.
+
+Planejado:
+
+- Busca por nome
+- Empresa atual
+- Cargo
+- Curso
+- Ano de formação
+- LinkedIn
+- Mentorias
+
+---
+
+## 💰 Finanças
+
+### 💳 Integração com PIX
+
+Permitir pagamentos diretamente pela plataforma.
+
+Planejado:
+
+- QR Code PIX
+- Confirmação automática
+- Histórico de pagamentos
+- Conciliação financeira
+
+---
+
+### 💸 Divisão de Despesas
+
+Módulo inspirado no Splitwise.
+
+Exemplos:
+
+- Compras de supermercado
+- Contas da casa
+- Festas
+- Reparos
+
+Com cálculo automático de saldos entre moradores.
+
+---
+
+## ⚠️ Sistema de Pontos Negativos
+
+Um sistema para registrar descumprimento de responsabilidades ou comportamentos inadequados dentro da república de forma transparente.
+
+O objetivo é criar um histórico organizado, reduzindo discussões e tornando o processo de aplicação de penalidades mais justo.
+
+### Fluxo
+
+1. Um morador registra uma ocorrência.
+2. Faz upload de uma ou mais fotos como evidência.
+3. Seleciona o morador responsável pela ocorrência.
+4. Descreve o motivo da infração.
+5. A ocorrência fica pendente de análise.
+6. O Presidente revisa as evidências.
+7. O Presidente aprova ou rejeita a solicitação.
+8. Caso aprovada, os Pontos Negativos são adicionados ao morador.
+
+### Possíveis funcionalidades
+
+- Upload de fotos como evidência
+- Registro da data e horário da ocorrência
+- Descrição da infração
+- Histórico completo de ocorrências
+- Aprovação ou rejeição pelo Presidente
+- Apenas o Presidente pode aplicar ou remover Pontos Negativos
+- Auditoria de quem registrou e quem aprovou a ocorrência
+- Conversão automática dos Pontos Negativos em acréscimos no aluguel mensal
+
+### Regras de negócio
+
+- Qualquer morador pode registrar uma ocorrência.
+- Apenas o Presidente pode aprová-la.
+- Apenas ocorrências aprovadas geram Pontos Negativos.
+- Apenas o Presidente pode remover Pontos Negativos.
+- Toda alteração fica registrada para auditoria.
+
+
+---
+
+## ☁️ Infraestrutura
+
+Melhorias planejadas para produção.
+
+- Domínio personalizado
+- Observabilidade e monitoramento
+- Backups automáticos
+- Pipeline completo de CI/CD
+- Métricas e dashboards
+- Notificações por e-mail e push
+- Aplicativo mobile
+
+---
+
+# 🎯 Visão de Longo Prazo
+
+O objetivo do FraternityOS é se tornar uma plataforma completa para gestão de repúblicas estudantis.
+
+A ideia é substituir ferramentas isoladas como WhatsApp, Google Calendar, planilhas, Splitwise e Google Drive por uma única aplicação integrada.
+
+Além do gerenciamento operacional, o projeto também busca fortalecer a comunidade da república através de:
+
+- Networking entre moradores e alumni
+- Gamificação
+- Organização financeira
+- Automação de processos
+- Inteligência Artificial
+
+---
+
+# 🤝 Contribuições
+
+Sugestões, ideias e Pull Requests são sempre bem-vindos.
