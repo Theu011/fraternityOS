@@ -3,7 +3,7 @@
 > Uma plataforma web para gerenciar as operações de uma república — membros, cargos, avisos, calendário compartilhado, tarefas e demonstrativos de aluguel mensais — substituindo o fluxo de WhatsApp + planilhas por um único painel.
 
 <!-- Atualize owner/repo se o seu remoto for diferente. -->
-![CI](https://github.com/quant-seven/trackmycareer/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Theu011/fraternityOS/actions/workflows/ci.yml/badge.svg)
 
 O FraternityOS é uma aplicação full-stack: uma API REST em **Spring Boot** e uma SPA em **React** separada. A autenticação é baseada em JWT e a autorização é **derivada dos cargos** que um membro possui (Presidente / Tesoureiro concedem permissões). A interface está em **português (BR)**.
 
@@ -11,7 +11,6 @@ O FraternityOS é uma aplicação full-stack: uma API REST em **Spring Boot** e 
 
 ## 📸 Capturas de tela
 
-> Coloque os PNGs nestes caminhos (`docs/screenshots/`) para que apareçam aqui.
 
 | Painel | Calendário |
 |---|---|
