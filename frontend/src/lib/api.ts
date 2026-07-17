@@ -11,8 +11,10 @@ export function setToken(token: string | null) {
   else localStorage.removeItem(TOKEN_KEY)
 }
 
-// baseURL '/api' is rewritten to the Spring API by the Vite dev proxy.
-export const api = axios.create({ baseURL: '/api' })
+// Base URL for the API. Defaults to '/api' — rewritten to the Spring API by the
+// Vite dev proxy locally and by the nginx proxy in the Docker image. Set
+// VITE_API_URL (build-time) to an absolute URL when the API is on another origin.
+export const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || '/api' })
 
 api.interceptors.request.use((config) => {
   const token = getToken()

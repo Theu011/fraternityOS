@@ -7,6 +7,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Build-time API base URL (baked into the bundle). Empty => the SPA uses "/api",
+# which nginx proxies to the backend. Override for a cross-origin API deployment.
+ARG VITE_API_URL=""
+ENV VITE_API_URL=$VITE_API_URL
+
 COPY . .
 RUN npm run build
 

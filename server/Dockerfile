@@ -11,15 +11,24 @@ RUN mvn -B -q dependency:go-offline
 COPY src ./src
 RUN mvn -B -q clean package -DskipTests
 
-# --- Runtime stage: slim JRE, non-root, just the jar ---
-FROM eclipse-temurin:21-jre AS runtime
+# --- Runtime stage: slim Alpine JRE, non-root, just the jar ---
+FROM eclipse-temurin:21-jre-alpine AS runtime
 WORKDIR /app
 
-# Run as an unprivileged user.
-RUN useradd --system --uid 1001 spring
+# Create an unprivileged user and give it ownership of /app so it can write the
+# uploads dir (and any named volume mounted there inherits this ownership).
+RUN addgroup -S spring && adduser -S spring -G spring
+COPY --from=build /app/target/*.jar app.jar
+RUN mkdir -p /app/uploads && chown -R spring:spring /app
 USER spring
 
-COPY --from=build /app/target/*.jar app.jar
+# Optional JVM tuning, e.g. JAVA_OPTS="-XX:MaxRAMPercentage=75".
+ENV JAVA_OPTS=""
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+# Liveness probe via the actuator health endpoint (permitAll in SecurityConfig).
+HEALTHCHECK --interval=30s --timeout=3s --start-period=45s --retries=3 \
+    CMD wget -q -O - http://localhost:8080/actuator/health | grep -q '"status":"UP"' || exit 1
+
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]

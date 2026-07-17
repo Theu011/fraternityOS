@@ -108,13 +108,41 @@ cd frontend && npm install && npm run dev
 
 Depois abra http://localhost:5173, **cadastre-se** e crie uma república (você vira Presidente) ou solicite entrada em uma existente.
 
-### Configuração
+### Variáveis de ambiente
 
-| Variável | Padrão | Observações |
+Copie `.env.example` para `.env` (o docker-compose lê automaticamente). Todas têm um padrão local seguro, então o stack sobe sem configuração; sobrescreva para produção.
+
+| Variável | Padrão | Descrição |
 |---|---|---|
-| `JWT_SECRET` | segredo de dev (emite aviso) | **Defina um valor forte e único (≥32 bytes) em produção.** |
-| `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` | localhost / postgres / postgres | Sobrescritos por env no compose. |
-| `FILE_STORAGE_DIR` | `uploads` | Onde os anexos dos demonstrativos são armazenados. |
+| `SPRING_PROFILES_ACTIVE` | `prod` (no compose) | `prod` lê tudo de env (`application-prod.yml`) e falha rápido se faltar algo. Dev local sem container usa o profile `default`. |
+| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | `fraternityos` / `postgres` / `postgres` | Credenciais do Postgres do compose. |
+| `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` | Postgres do compose | Datasource do backend; aponte para um banco externo em produção. |
+| `JWT_SECRET` | segredo de dev (emite aviso) | **Segredo de assinatura JWT — valor forte e único ≥32 bytes em produção.** Sem ele, o profile `prod` não inicia. |
+| `JWT_EXPIRATION_MS` | `86400000` (24h) | Validade do token. |
+| `CORS_ALLOWED_ORIGINS` | *(vazio)* | Origens permitidas (separadas por vírgula). Vazio = sem CORS (mesma origem via proxy). **Nunca use `*` em produção.** |
+| `FILE_STORAGE_DIR` | `/app/uploads` | Diretório dos anexos dos demonstrativos. |
+| `VITE_API_URL` | *(vazio → `/api`)* | URL base da API no build do frontend. Defina absoluta só se a API estiver em outra origem. |
+| `JAVA_OPTS` | *(vazio)* | Flags extras da JVM, ex.: `-XX:MaxRAMPercentage=75`. |
+
+### Produção
+
+O backend tem um profile de produção (`application-prod.yml`) que lê **toda** a configuração sensível de variáveis de ambiente e **falha rápido** se algum valor obrigatório faltar — nenhum segredo é gravado na imagem ou no repositório.
+
+```bash
+# 1. Configure os segredos (nunca faça commit do .env)
+cp .env.example .env
+#   defina JWT_SECRET (ex.: openssl rand -base64 48), o datasource de produção,
+#   e CORS_ALLOWED_ORIGINS se o frontend estiver em outra origem.
+
+# 2. Suba o stack (o compose já usa SPRING_PROFILES_ACTIVE=prod por padrão)
+docker compose up --build -d
+```
+
+- O backend expõe `GET /actuator/health` para probes (o container tem `HEALTHCHECK`, e o frontend só sobe quando o backend está *healthy*).
+- O **Flyway migra automaticamente** ao iniciar; o Hibernate roda em `ddl-auto=validate`.
+- Imagens: backend multi-stage em **JRE Alpine** (não-root), frontend em **nginx** servindo o build estático e fazendo proxy de `/api`.
+
+> Deploy em si (provedor, TLS, secrets manager, backups) ainda **não** está incluído — veja "Próximos passos de deploy" no fim.
 
 ---
 
@@ -153,13 +181,18 @@ Frontend: `npm run lint` (oxlint) e `npm run build` (checagem de tipos + bundle)
 
 ## 🔄 CI
 
-O `.github/workflows/ci.yml` roda a cada push na `main` e em todo PR:
+O `.github/workflows/ci.yml` roda a cada push na `main` e em todo PR: **Build → Testes → Empacotamento** (sem deploy).
 
 ```
-backend (mvn verify + Testcontainers)   frontend (npm ci → lint → build)
-                     └──────────────┬──────────────┘
-                          docker (build das duas imagens)
+backend (mvn clean verify + Testcontainers → jar)   frontend (npm ci → lint → build → dist)
+                         └──────────────────┬──────────────────┘
+                              docker (build das duas imagens)
 ```
+
+- **backend** — `mvn clean verify` (compila, testa com Testcontainers e empacota o jar), publicado como artifact.
+- **frontend** — `npm ci → lint → build`, `dist/` publicado como artifact.
+- **docker** — build das imagens do backend e do frontend (empacotamento em container).
+- O **deploy é intencionalmente omitido** por enquanto.
 
 ---
 
@@ -175,3 +208,16 @@ trackmycareer/
 ├─ project-scope.md     # especificação do produto + modelo de dados (fonte da verdade)
 └─ CLAUDE.md            # arquitetura e convenções de código
 ```
+
+---
+
+## 🚧 Próximos passos de deploy
+
+O projeto está **pronto para produção** (config por env, imagens, health checks, CI com empacotamento), mas o deploy em si ainda não foi feito. O que falta ao publicar:
+
+1. Provisionar um **PostgreSQL gerenciado** e definir `SPRING_DATASOURCE_*`.
+2. Gerar e guardar o `JWT_SECRET` num **secrets manager** (não em `.env` versionado).
+3. Definir `CORS_ALLOWED_ORIGINS` com a origem real do frontend.
+4. Publicar as imagens num **registry** e rodar atrás de **HTTPS/TLS** (reverse proxy ou load balancer).
+5. Configurar **backups** do banco e retenção do volume de uploads (ou migrar para S3).
+6. (Opcional) Estender o CI com um job de **deploy** disparado por tag/release.

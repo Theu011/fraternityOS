@@ -1,0 +1,58 @@
+# Production profile — activate with SPRING_PROFILES_ACTIVE=prod.
+#
+# All sensitive / environment-specific values come from environment variables.
+# The datasource and JWT secret have NO defaults here, so the app fails fast on
+# startup if they are missing — no secret is ever baked into the image or repo.
+# Local development uses the default profile (application.yml) and is unchanged.
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate          # Flyway owns the schema; Hibernate only validates
+    open-in-view: false           # no lazy loading during view rendering in prod
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true                 # migrations run automatically on startup
+    baseline-on-migrate: false
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}         # required — no default in production
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  storage:
+    location: ${FILE_STORAGE_DIR:/app/uploads}
+  cors:
+    # Comma-separated list of allowed origins. Empty = no cross-origin access.
+    # Never use "*" in production.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
+# Health endpoint for container / load-balancer probes (only health is exposed).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+server:
+  port: ${PORT:8080}              # Render injects PORT; fall back to 8080 elsewhere
+  error:
+    include-stacktrace: never     # never leak stack traces to clients
+    include-message: always
+
+logging:
+  level:
+    root: INFO
+    com.fraternityos.server: INFO
+    org.springframework: WARN
+    org.hibernate.SQL: WARN

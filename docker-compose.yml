@@ -5,9 +5,9 @@ services:
     restart: unless-stopped
 
     environment:
-      POSTGRES_DB: fraternityos
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-fraternityos}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
     ports:
       - "5432:5432"
@@ -16,7 +16,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d fraternityos"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-fraternityos}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -30,17 +30,22 @@ services:
       postgres:
         condition: service_healthy
 
+    # Every value is overridable via a .env file (see .env.example); the defaults
+    # target the compose Postgres so the stack still boots with no configuration.
     environment:
-      # Env vars override application.yml (Spring relaxed binding), pointing the
-      # app at the compose Postgres instead of localhost.
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fraternityos
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-      # Sourced from the environment (e.g. a .env file — see .env.example).
-      # Falls back to the dev secret so the stack still boots locally; the app
-      # logs a warning when that fallback is in use. Set a strong value in prod.
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL:-jdbc:postgresql://postgres:5432/fraternityos}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD:-postgres}
+      # Falls back to the dev secret so the stack boots locally; the app logs a
+      # warning when that fallback is used. ALWAYS set a strong value in prod.
       JWT_SECRET: ${JWT_SECRET:-change-me-dev-secret-at-least-32-bytes-long-000}
-      FILE_STORAGE_DIR: /app/uploads
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      FILE_STORAGE_DIR: ${FILE_STORAGE_DIR:-/app/uploads}
+      # Same-origin via the frontend nginx proxy, so CORS isn't strictly needed;
+      # set explicit origins here for a cross-origin deployment.
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      JAVA_OPTS: ${JAVA_OPTS:-}
 
     ports:
       - "8080:8080"
@@ -49,15 +54,19 @@ services:
       - backend_uploads:/app/uploads
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-}
     container_name: fraternityos-frontend
     restart: unless-stopped
 
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
     ports:
-      - "5173:80"
+      - "${FRONTEND_PORT:-5173}:80"
 
 volumes:
   postgres_data:

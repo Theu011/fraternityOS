@@ -1259,3 +1259,342 @@ Provide scores (1–10) for:
 - REST API Design
 
 Finish with an overall evaluation explaining whether the project demonstrates production-ready software engineering practices suitable for a portfolio targeting Software Engineer or Data Engineer positions.
+
+
+# Task X — Prepare the Project for Production
+
+Act as a Senior DevOps Engineer.
+
+Prepare the project for production deployment.
+
+Do **not** deploy anything yet.
+
+Your goal is to make the application production-ready while keeping the current development experience intact.
+
+---
+
+## Backend
+
+Review the Spring Boot project.
+
+Create or update the production configuration.
+
+Create
+
+```
+application-prod.yml
+```
+
+Requirements
+
+- Read all sensitive values from environment variables
+- Keep local development unchanged
+- Enable Flyway
+- Configure production logging
+- Use `ddl-auto=validate`
+- Ensure no secrets are committed
+
+Use environment variables for
+
+```
+SPRING_DATASOURCE_URL
+
+SPRING_DATASOURCE_USERNAME
+
+SPRING_DATASOURCE_PASSWORD
+
+JWT_SECRET
+```
+
+---
+
+## Frontend
+
+Prepare the React application for production.
+
+Requirements
+
+- Use environment variables
+- Replace hardcoded API URLs
+- Configure
+
+```
+VITE_API_URL
+```
+
+Ensure the application works in both development and production.
+
+---
+
+## Docker
+
+Review the Docker configuration.
+
+Create or improve
+
+```
+Dockerfile
+
+docker-compose.yml
+
+.dockerignore
+```
+
+Optimize image size where possible.
+
+---
+
+## Environment Variables
+
+Create
+
+```
+.env.example
+```
+
+Include every required variable without exposing secrets.
+
+Document every variable.
+
+---
+
+## GitHub Actions
+
+Review the CI workflow.
+
+Ensure every push to `main`
+
+```
+Build
+
+↓
+
+Run Tests
+
+↓
+
+Package Application
+```
+
+Deployment should **not** happen yet.
+
+---
+
+## CORS
+
+Prepare production CORS configuration.
+
+Requirements
+
+- Allow configuration through environment variables
+- Do not allow all origins in production
+- Keep local development working
+
+---
+
+## Flyway
+
+Review database migrations.
+
+Ensure migrations execute automatically in production.
+
+---
+
+## README
+
+Update the README with
+
+- Environment variables
+- Local setup
+- Production setup
+- Docker usage
+- CI pipeline
+
+---
+
+## Deliverables
+
+When finished, provide
+
+- Summary of changes
+- Files created
+- Files modified
+- Remaining deployment steps
+
+Do not deploy anything yet.
+
+# Task X — Production Deployment Assistant
+
+Act as a Senior DevOps Engineer.
+
+Help me deploy this application to production.
+
+We will deploy incrementally.
+
+**Never perform multiple deployment steps at once.**
+
+After each completed step, stop and wait for my confirmation before continuing.
+
+Assume I have already created and connected accounts for:
+
+- GitHub
+- Neon
+- Render
+- Vercel
+
+---
+
+## Target Architecture
+
+```
+React (Vercel)
+
+↓
+
+Spring Boot (Render)
+
+↓
+
+PostgreSQL (Neon)
+```
+
+---
+
+## Deployment Process
+
+Guide me through the following steps one at a time.
+
+### Step 1
+
+Create the Neon PostgreSQL database.
+
+Help me
+
+- Create the project
+- Configure the database
+- Obtain the connection information
+- Explain which values are secrets
+- Explain where each value will be used
+
+Stop and wait for confirmation.
+
+---
+
+### Step 2
+
+Configure Render.
+
+Help me
+
+- Create the Web Service
+- Connect the GitHub repository
+- Configure Java
+- Configure build/start commands
+- Configure environment variables
+
+Do **not** assume any values.
+
+Tell me exactly where to obtain each value.
+
+Stop and wait for confirmation.
+
+---
+
+### Step 3
+
+Deploy the backend.
+
+Verify
+
+- Build succeeds
+- Flyway executes
+- Application starts
+- Health endpoint works
+- Swagger/OpenAPI is accessible
+
+If something fails, help debug it before moving on.
+
+Stop and wait for confirmation.
+
+---
+
+### Step 4
+
+Deploy the React application to Vercel.
+
+Help me
+
+- Import the repository
+- Configure environment variables
+- Configure the production API URL
+
+Verify the deployment.
+
+Stop and wait for confirmation.
+
+---
+
+### Step 5
+
+Configure CORS.
+
+Allow only the deployed frontend domain.
+
+Verify authentication works.
+
+Stop and wait for confirmation.
+
+---
+
+### Step 6
+
+Perform production verification.
+
+Test
+
+- Registration
+- Login
+- House creation
+- Join request
+- Members page
+- Announcements
+- Calendar
+- Responsibilities
+- Finance
+
+If any feature fails, debug it before continuing.
+
+Stop and wait for confirmation.
+
+---
+
+### Step 7
+
+Finalize production.
+
+Help me
+
+- Configure a custom domain (optional)
+- Verify HTTPS
+- Review production logs
+- Review environment variables
+- Verify database migrations
+- Verify CI/CD
+
+---
+
+## Rules
+
+- Never ask me to expose passwords or secrets.
+- Never ask me to commit secrets to Git.
+- Explain every step before performing it.
+- If an error occurs, debug it before moving on.
+- Do not skip steps.
+- Wait for my confirmation before continuing to the next step.
+
+The goal is to leave the application fully deployed and production-ready using:
+
+- Vercel
+- Render
+- Neon PostgreSQL
+- GitHub Actions
