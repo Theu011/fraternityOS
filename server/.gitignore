@@ -4,6 +4,9 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Uploaded statement attachments (local-disk storage) ###
+uploads/
+
 ### STS ###
 .apt_generated
 .classpath

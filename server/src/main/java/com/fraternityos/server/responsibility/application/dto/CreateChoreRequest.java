@@ -1,0 +1,12 @@
+package com.fraternityos.server.responsibility.application.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import java.time.LocalDate;
+
+public record CreateChoreRequest(
+        @NotBlank String title,
+        String description,
+        @NotNull Long assigneeId,
+        @NotNull LocalDate dueDate) {
+}

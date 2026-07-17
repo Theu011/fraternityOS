@@ -1,0 +1,2 @@
+# Local environment overrides (secrets). Commit .env.example, never .env.
+.env
