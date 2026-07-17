@@ -1441,6 +1441,7 @@ Assume I have already created and connected accounts for:
 - Neon
 - Render
 - Vercel
+- Supabase
 
 ---
 
@@ -1451,12 +1452,17 @@ React (Vercel)
 
 ↓
 
-Spring Boot (Render)
+Spring Boot (Render)  ──→  Supabase Storage (statement attachments)
 
 ↓
 
 PostgreSQL (Neon)
 ```
+
+Statement attachments (rent PDFs/images) are stored in a **private Supabase Storage
+bucket** in production, not on Render's local disk — Render's filesystem is ephemeral
+and is wiped on every redeploy/restart. In production the backend uses
+`SupabaseFileStorageService` (`prod` profile); local/dev still uses local disk.
 
 ---
 
@@ -1480,6 +1486,29 @@ Stop and wait for confirmation.
 
 ---
 
+### Step 1B
+
+Configure Supabase Storage (statement attachments).
+
+Help me
+
+- Create a **private** Storage bucket (default name `statements`)
+- Obtain the project URL and the secret key
+- Explain which values are secrets
+- Explain where each value will be used (Render env vars in Step 2)
+
+Values needed later (Render):
+
+- `SUPABASE_URL` — project URL, e.g. `https://<ref>.supabase.co` (not secret)
+- `SUPABASE_STORAGE_BUCKET` — bucket name, defaults to `statements` (not secret)
+- `SUPABASE_SERVICE_KEY` — Supabase secret key (`sb_secret_...` or legacy `service_role`) — **secret, backend only**
+
+Do **not** ask me to expose or commit the secret key.
+
+Stop and wait for confirmation.
+
+---
+
 ### Step 2
 
 Configure Render.
@@ -1491,10 +1520,17 @@ Help me
 - Configure Java
 - Configure build/start commands
 - Configure environment variables
+    - Database: `SPRING_DATASOURCE_URL` / `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` (from Step 1, Neon)
+    - Security: `JWT_SECRET`
+    - Profile / port: `SPRING_PROFILES_ACTIVE=prod` (Render provides `PORT` automatically)
+    - Storage: `SUPABASE_URL` / `SUPABASE_STORAGE_BUCKET` / `SUPABASE_SERVICE_KEY` (from Step 1B, Supabase)
+    - CORS: `CORS_ALLOWED_ORIGINS` (set in Step 5, the Vercel frontend origin)
 
 Do **not** assume any values.
 
 Tell me exactly where to obtain each value.
+
+Mark `SPRING_DATASOURCE_PASSWORD`, `JWT_SECRET`, and `SUPABASE_SERVICE_KEY` as **secret** env vars.
 
 Stop and wait for confirmation.
 
@@ -1560,7 +1596,7 @@ Test
 - Announcements
 - Calendar
 - Responsibilities
-- Finance
+- Finance (upload a statement attachment, then download it — confirms the Supabase Storage bucket works and the object survives a redeploy)
 
 If any feature fails, debug it before continuing.
 
@@ -1597,4 +1633,5 @@ The goal is to leave the application fully deployed and production-ready using:
 - Vercel
 - Render
 - Neon PostgreSQL
+- Supabase Storage
 - GitHub Actions

@@ -8,9 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.Set;
-import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
@@ -19,13 +18,12 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * Stores files on local disk under a configured root. Keys are relative
  * ({@code statements/<uuid>.<ext>}); paths are normalised and confined to the
- * root to prevent traversal.
+ * root to prevent traversal. Used in local/dev; production uses
+ * {@link SupabaseFileStorageService} (Render's filesystem is ephemeral).
  */
 @Service
+@Profile("!prod")
 public class LocalDiskFileStorageService implements FileStorageService {
-
-    private static final Set<String> ALLOWED_TYPES =
-            Set.of("application/pdf", "image/png", "image/jpeg");
 
     private final Path root;
 
@@ -40,14 +38,7 @@ public class LocalDiskFileStorageService implements FileStorageService {
 
     @Override
     public String store(MultipartFile file) {
-        if (file == null || file.isEmpty()) {
-            throw new InvalidFileException("File is required.");
-        }
-        String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_TYPES.contains(contentType)) {
-            throw new InvalidFileException("Only PDF, PNG, or JPEG files are allowed.");
-        }
-        String key = "statements/" + UUID.randomUUID() + extensionFor(contentType);
+        String key = StatementAttachments.validatedKey(file);
         Path target = resolve(key);
         try {
             Files.createDirectories(target.getParent());
@@ -89,14 +80,5 @@ public class LocalDiskFileStorageService implements FileStorageService {
             throw new InvalidFileException("Invalid storage key.");
         }
         return resolved;
-    }
-
-    private String extensionFor(String contentType) {
-        return switch (contentType) {
-            case "application/pdf" -> ".pdf";
-            case "image/png" -> ".png";
-            case "image/jpeg" -> ".jpg";
-            default -> "";
-        };
     }
 }

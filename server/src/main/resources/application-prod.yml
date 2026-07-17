@@ -27,7 +27,14 @@ app:
     secret: ${JWT_SECRET}         # required — no default in production
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
   storage:
+    # Local-disk path is unused in prod (SupabaseFileStorageService is active), kept for parity.
     location: ${FILE_STORAGE_DIR:/app/uploads}
+    # Attachments live in a private Supabase Storage bucket so they survive redeploys
+    # (Render's filesystem is ephemeral). url/secret-key have no default → fail fast.
+    supabase:
+      url: ${SUPABASE_URL}
+      bucket: ${SUPABASE_STORAGE_BUCKET:statements}
+      secret-key: ${SUPABASE_SERVICE_KEY}
   cors:
     # Comma-separated list of allowed origins. Empty = no cross-origin access.
     # Never use "*" in production.

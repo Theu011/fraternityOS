@@ -120,13 +120,18 @@ Copie `.env.example` para `.env` (o docker-compose lê automaticamente). Todas t
 | `JWT_SECRET` | segredo de dev (emite aviso) | **Segredo de assinatura JWT — valor forte e único ≥32 bytes em produção.** Sem ele, o profile `prod` não inicia. |
 | `JWT_EXPIRATION_MS` | `86400000` (24h) | Validade do token. |
 | `CORS_ALLOWED_ORIGINS` | *(vazio)* | Origens permitidas (separadas por vírgula). Vazio = sem CORS (mesma origem via proxy). **Nunca use `*` em produção.** |
-| `FILE_STORAGE_DIR` | `/app/uploads` | Diretório dos anexos dos demonstrativos. |
+| `FILE_STORAGE_DIR` | `/app/uploads` | **Dev/local:** diretório dos anexos dos demonstrativos (profile `default`). |
+| `SUPABASE_URL` | *(sem padrão)* | **Produção:** URL do projeto Supabase, ex.: `https://abcxyz.supabase.co`. Obrigatória no profile `prod`. |
+| `SUPABASE_STORAGE_BUCKET` | `statements` | **Produção:** bucket **privado** do Supabase Storage para os anexos. |
+| `SUPABASE_SERVICE_KEY` | *(sem padrão)* | **Produção — Segredo.** Chave secreta do Supabase (`sb_secret_...` ou `service_role`). Apenas backend; nunca faça commit nem exponha ao navegador. |
 | `VITE_API_URL` | *(vazio → `/api`)* | URL base da API no build do frontend. Defina absoluta só se a API estiver em outra origem. |
 | `JAVA_OPTS` | *(vazio)* | Flags extras da JVM, ex.: `-XX:MaxRAMPercentage=75`. |
 
 ### Produção
 
 O backend tem um profile de produção (`application-prod.yml`) que lê **toda** a configuração sensível de variáveis de ambiente e **falha rápido** se algum valor obrigatório faltar — nenhum segredo é gravado na imagem ou no repositório.
+
+Em produção os anexos dos demonstrativos são guardados num bucket **privado** do **Supabase Storage** (`SupabaseFileStorageService`), e não em disco local — assim sobrevivem a redeploys/reinícios em hosts com filesystem efêmero (ex.: Render). Em dev/local o profile `default` continua usando disco local (`FILE_STORAGE_DIR`), sem precisar do Supabase.
 
 ```bash
 # 1. Configure os segredos (nunca faça commit do .env)
@@ -219,5 +224,5 @@ O projeto está **pronto para produção** (config por env, imagens, health chec
 2. Gerar e guardar o `JWT_SECRET` num **secrets manager** (não em `.env` versionado).
 3. Definir `CORS_ALLOWED_ORIGINS` com a origem real do frontend.
 4. Publicar as imagens num **registry** e rodar atrás de **HTTPS/TLS** (reverse proxy ou load balancer).
-5. Configurar **backups** do banco e retenção do volume de uploads (ou migrar para S3).
+5. Provisionar o **Supabase Storage** (bucket privado) e definir `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` para os anexos; configurar **backups** do banco.
 6. (Opcional) Estender o CI com um job de **deploy** disparado por tag/release.
